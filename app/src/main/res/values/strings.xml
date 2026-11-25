@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Local Calls Only</string>
+    <string name="tile_label">Local Calls Only</string>
+    <string name="tile_on">Blocking foreign</string>
+    <string name="tile_off">Off</string>
+    <string name="tile_needs_setup">Needs setup</string>
+</resources>
