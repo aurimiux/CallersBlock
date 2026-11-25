@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -119,7 +120,9 @@ private fun MainScreen(resumeTick: Int) {
         ActivityResultContracts.RequestPermission()
     ) { refresh++ }
 
-    var countryCode by rememberSaveable { mutableStateOf(Prefs.countryCode(ctx)) }
+    val prefixes = remember(prefsVersion) { Prefs.allowedPrefixes(ctx) }
+    var newPrefix by rememberSaveable { mutableStateOf("") }
+    var prefixError by rememberSaveable { mutableStateOf<String?>(null) }
     var trunk by rememberSaveable { mutableStateOf(Prefs.trunkPrefixesRaw(ctx)) }
 
     Column(
@@ -183,22 +186,48 @@ private fun MainScreen(resumeTick: Int) {
 
         // 4. Allowed prefixes
         SectionCard {
-            Text("Allowed numbers", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = countryCode,
-                onValueChange = {
-                    countryCode = it
-                    Prefs.setCountryCode(ctx, it)
-                },
-                label = { Text("Country code") },
-                supportingText = {
-                    val cc = PhoneRules.normalizeCountryCode(countryCode)
-                    Text(if (cc.isEmpty()) "Enter a code like +370" else "Numbers starting with $cc will ring")
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
+            Text("Allowed prefixes", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Only numbers starting with one of these ring (plus contacts, short and national numbers).",
+                style = MaterialTheme.typography.bodySmall,
             )
+            if (prefixes.isEmpty()) {
+                Text(
+                    "No prefixes — every +number outside your contacts will be blocked.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            prefixes.forEach { p ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(p, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { Prefs.removeAllowedPrefix(ctx, p) }) { Text("Remove") }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = newPrefix,
+                    onValueChange = { newPrefix = it; prefixError = null },
+                    label = { Text("Add prefix, e.g. +371") },
+                    isError = prefixError != null,
+                    supportingText = prefixError?.let { err -> { Text(err) } },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = {
+                    val p = PhoneRules.normalizeCountryCode(newPrefix)
+                    prefixError = when {
+                        p.length !in 2..PhoneRules.MAX_PREFIX_LENGTH -> "Use + and 1–7 digits"
+                        p in prefixes -> "$p is already allowed"
+                        !Prefs.addAllowedPrefix(ctx, p) -> "Couldn't add $p"
+                        else -> null
+                    }
+                    if (prefixError == null) newPrefix = ""
+                }) { Text("Add") }
+            }
+            HorizontalDivider()
             OutlinedTextField(
                 value = trunk,
                 onValueChange = {

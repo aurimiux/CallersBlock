@@ -14,7 +14,8 @@ data class BlockedCall(val number: String, val timestamp: Long)
 object Prefs {
     private const val FILE = "local_calls_prefs"
     private const val KEY_ENABLED = "enabled"
-    private const val KEY_COUNTRY = "country_code"
+    private const val KEY_COUNTRY = "country_code" // legacy single value, read once as fallback
+    private const val KEY_PREFIXES = "allowed_prefixes"
     private const val KEY_TRUNK = "trunk_prefixes"
     private const val KEY_BLOCKED = "blocked_log"
 
@@ -35,11 +36,31 @@ object Prefs {
         )
     }
 
-    fun countryCode(ctx: Context): String =
-        get(ctx).getString(KEY_COUNTRY, DEFAULT_COUNTRY) ?: DEFAULT_COUNTRY
+    /** Allowed international prefixes, e.g. ["+370", "+371"]. Falls back to the old single country code. */
+    fun allowedPrefixes(ctx: Context): List<String> {
+        val sp = get(ctx)
+        val csv = sp.getString(KEY_PREFIXES, null)
+            ?: sp.getString(KEY_COUNTRY, DEFAULT_COUNTRY)
+            ?: DEFAULT_COUNTRY
+        return PhoneRules.parseAllowedPrefixes(csv)
+    }
 
-    fun setCountryCode(ctx: Context, value: String) =
-        get(ctx).edit { putString(KEY_COUNTRY, value) }
+    private fun setAllowedPrefixes(ctx: Context, list: List<String>) =
+        get(ctx).edit { putString(KEY_PREFIXES, list.joinToString(",")) }
+
+    /** Returns false if the input isn't a valid prefix or is already in the list. */
+    @Synchronized
+    fun addAllowedPrefix(ctx: Context, input: String): Boolean {
+        val p = PhoneRules.parseAllowedPrefixes(input).singleOrNull() ?: return false
+        val current = allowedPrefixes(ctx)
+        if (p in current) return false
+        setAllowedPrefixes(ctx, current + p)
+        return true
+    }
+
+    @Synchronized
+    fun removeAllowedPrefix(ctx: Context, prefix: String) =
+        setAllowedPrefixes(ctx, allowedPrefixes(ctx) - prefix)
 
     fun trunkPrefixesRaw(ctx: Context): String =
         get(ctx).getString(KEY_TRUNK, DEFAULT_TRUNK) ?: DEFAULT_TRUNK

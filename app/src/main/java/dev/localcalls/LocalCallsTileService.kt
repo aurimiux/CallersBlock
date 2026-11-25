@@ -13,6 +13,11 @@ class LocalCallsTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
+        // Don't let someone holding the locked phone switch the blocker from the lock screen.
+        if (isLocked) unlockAndRun { toggle() } else toggle()
+    }
+
+    private fun toggle() {
         Prefs.setEnabled(this, !Prefs.isEnabled(this))
         updateTile()
     }

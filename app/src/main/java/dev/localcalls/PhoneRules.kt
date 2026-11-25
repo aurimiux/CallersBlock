@@ -35,6 +35,16 @@ object PhoneRules {
         return if (digits.isEmpty()) "" else "+$digits"
     }
 
+    /** "+370, 371 00 44" -> ["+370", "+371", "+44"]. Invalid entries are dropped. */
+    fun parseAllowedPrefixes(csv: String): List<String> =
+        csv.split(',', ';', '\n')
+            .map { normalizeCountryCode(it) }
+            .filter { it.length in 2..MAX_PREFIX_LENGTH }
+            .distinct()
+
+    /** "+" plus up to 7 digits — enough for a country code plus an area/operator code. */
+    const val MAX_PREFIX_LENGTH = 8
+
     /** "0, 8" -> ["0", "8"]. */
     fun parseTrunkPrefixes(csv: String): List<String> =
         csv.split(',', ';', ' ')
@@ -49,9 +59,12 @@ object PhoneRules {
     fun isShortNumber(normalized: String): Boolean =
         !normalized.startsWith("+") && normalized.length in 1..MAX_SHORT_NUMBER_LENGTH
 
-    fun isLocal(normalized: String, countryCode: String, trunkPrefixes: List<String>): Boolean {
-        val cc = normalizeCountryCode(countryCode)
-        if (cc.isNotEmpty() && normalized.startsWith(cc)) return true
+    fun isLocal(normalized: String, allowedPrefixes: List<String>, trunkPrefixes: List<String>): Boolean {
+        if (allowedPrefixes.any { p ->
+                val cc = normalizeCountryCode(p)
+                cc.isNotEmpty() && normalized.startsWith(cc)
+            }
+        ) return true
         // National format (no '+') starting with a trunk prefix, e.g. 8 6xx xxxxx in Lithuania.
         if (!normalized.startsWith("+")) {
             return trunkPrefixes.any { it.isNotEmpty() && normalized.startsWith(it) }
@@ -66,7 +79,7 @@ object PhoneRules {
     fun decide(
         enabled: Boolean,
         rawNumber: String?,
-        countryCode: String,
+        allowedPrefixes: List<String>,
         trunkPrefixes: List<String>,
         isEmergency: (String) -> Boolean,
         isContact: (String) -> Boolean,
@@ -76,7 +89,7 @@ object PhoneRules {
         val normalized = normalize(rawNumber)
         if (normalized.isEmpty() || normalized == "+") return Decision.ALLOW_NO_HANDLE
         if (isEmergency(rawNumber) || isEmergency(normalized)) return Decision.ALLOW_EMERGENCY
-        if (isLocal(normalized, countryCode, trunkPrefixes)) return Decision.ALLOW_LOCAL_PREFIX
+        if (isLocal(normalized, allowedPrefixes, trunkPrefixes)) return Decision.ALLOW_LOCAL_PREFIX
         if (isShortNumber(normalized)) return Decision.ALLOW_SHORT_NUMBER
         if (isContact(rawNumber) || isContact(normalized)) return Decision.ALLOW_CONTACT
         return Decision.BLOCK

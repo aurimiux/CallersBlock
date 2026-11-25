@@ -32,7 +32,7 @@ class LocalCallScreeningService : CallScreeningService() {
                 PhoneRules.decide(
                     enabled = Prefs.isEnabled(this),
                     rawNumber = number,
-                    countryCode = Prefs.countryCode(this),
+                    allowedPrefixes = Prefs.allowedPrefixes(this),
                     trunkPrefixes = Prefs.trunkPrefixes(this),
                     isEmergency = { isEmergencyNumber(this, it) },
                     isContact = { isInContacts(this, it) },

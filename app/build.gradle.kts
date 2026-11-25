@@ -1,8 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// Release signing: CI passes SIGNING_* env vars (from GitHub secrets); locally a gitignored
+// keystore.properties is used. Neither the key nor its passwords are ever committed.
+val keystoreProps = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun signingValue(env: String, prop: String): String? =
+    System.getenv(env)?.takeIf { it.isNotBlank() } ?: keystoreProps.getProperty(prop)
+
+val releaseStoreFile = signingValue("SIGNING_KEYSTORE_FILE", "storeFile")
+val hasReleaseKey = releaseStoreFile != null && file(releaseStoreFile).exists()
 
 android {
     namespace = "dev.localcalls"
@@ -16,14 +29,24 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = signingValue("SIGNING_STORE_PASSWORD", "storePassword")
+                keyAlias = signingValue("SIGNING_KEY_ALIAS", "keyAlias")
+                keyPassword = signingValue("SIGNING_KEY_PASSWORD", "keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // Personal sideload build: sign release with the local debug key so
-            // `assembleRelease` gives an installable APK. Swap for your own keystore if you like.
-            signingConfig = signingConfigs.getByName("debug")
+            // Without a release key (e.g. a fork's CI) fall back to the debug key so the APK still installs.
+            signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
     }
 

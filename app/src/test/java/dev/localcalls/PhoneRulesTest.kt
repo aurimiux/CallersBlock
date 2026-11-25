@@ -12,7 +12,7 @@ class PhoneRulesTest {
         enabled: Boolean = true,
         emergency: Boolean = false,
         contact: Boolean = false,
-    ) = PhoneRules.decide(enabled, number, "+370", trunks, { emergency }, { contact })
+    ) = PhoneRules.decide(enabled, number, listOf("+370", "+371"), trunks, { emergency }, { contact })
 
     @Test fun normalizeStripsFormatting() {
         assertEquals("+37061234567", PhoneRules.normalize(" +370 (612) 34-567 "))
@@ -39,7 +39,15 @@ class PhoneRulesTest {
     @Test fun blocksForeign() {
         assertEquals(Decision.BLOCK, decide("+44 20 7123 4567"))
         assertEquals(Decision.BLOCK, decide("0044 20 7123 4567")) // 00 is international, not trunk 0
-        assertEquals(Decision.BLOCK, decide("+3712345678")) // Latvia, shares the +37 start
+        assertEquals(Decision.BLOCK, decide("+3722345678")) // Estonia, shares the +37 start
+    }
+
+    @Test fun allowsEveryListedPrefix() {
+        assertEquals(Decision.ALLOW_LOCAL_PREFIX, decide("+371 2123 4567")) // Latvia is on the list
+    }
+
+    @Test fun prefixListParsing() {
+        assertEquals(listOf("+370", "+371", "+44"), PhoneRules.parseAllowedPrefixes("+370, 371;0044,+370, x, +123456789"))
     }
 
     @Test fun allowsShortNumbers() {

@@ -5,3 +5,7 @@ build/
 local.properties
 *.iml
 captures/
+# signing material — never commit
+keystore.properties
+*.jks
+*.keystore
