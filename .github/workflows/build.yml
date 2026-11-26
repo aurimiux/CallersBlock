@@ -82,7 +82,11 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Tag builds cut a versioned release; pushes to main refresh a rolling "latest" one,
+    # so there is always a directly downloadable APK without having to tag.
+    if: >-
+      github.event_name != 'pull_request' &&
+      (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -93,9 +97,25 @@ jobs:
           name: CallersBlock-apk
           path: dist
 
-      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
-        with:
-          files: |
-            dist/*.apk
-            dist/SHA256SUMS.txt
-          generate_release_notes: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -l dist
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            gh release create "$GITHUB_REF_NAME" dist/*.apk dist/SHA256SUMS.txt \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          else
+            # Rolling build of main: drop the previous "latest" release and its tag, then recreate
+            # it at this commit so the download URL stays stable.
+            gh release delete latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+            gh release create latest dist/*.apk dist/SHA256SUMS.txt \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Latest build from main" \
+              --notes "Automatic build of \`main\` (${GITHUB_SHA:0:7}), signed with the release key. Download the APK below and install it straight on the phone." \
+              --prerelease
+          fi
