@@ -22,11 +22,21 @@ Every other call is rejected silently and still appears in your call history. Th
 
 ## Download
 
-Every push to `main` builds a signed APK. You can get it from the **Actions** tab (artifact `CallersBlock-apk`). Pushing a tag like `v1.0` also attaches the APK and its SHA-256 to a GitHub **Release**:
+Every push to `main` builds a signed APK and publishes it to the rolling
+[**latest**](https://github.com/aurimiux/CallersBlock/releases/tag/latest) release, so the APK is
+always one tap away on the phone — no GitHub login, no artifact zip:
+
+```
+https://github.com/aurimiux/CallersBlock/releases/download/latest/CallersBlock-main.apk
+```
+
+Pushing a version tag cuts a permanent release instead, with the APK and its SHA-256 attached:
 
 ```sh
 git tag v1.0 && git push origin v1.0
 ```
+
+The same APK is also kept as an Actions artifact (`CallersBlock-apk`), which needs a GitHub login.
 
 ## Build & install
 
